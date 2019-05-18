@@ -7,7 +7,7 @@ As input this script requires a ZTF lightcurve file named **lc.txt** and a folde
 From the folder containing your light curve and image data, you can run this app from the command line with:
 
 ```
-bokeh serve path_to_script/lc_interact.py
+bokeh serve lc_interact.py
 ```
 
 This will generate output on the command line similar to 
