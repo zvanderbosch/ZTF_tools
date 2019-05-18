@@ -50,7 +50,7 @@ for f in fits_files:
 gdata = data[(data.filtercode == 'zg') & (data.catflags == 0)].sort_values(by='mjd').reset_index()
 rdata = data[(data.filtercode == 'zr') & (data.catflags == 0)].sort_values(by='mjd').reset_index()
 
-# Find the Image MJDs which have no associated data points in the lightc urves
+# Find the Image MJDs which have no associated data points in the light curves
 gmjds_nodat = []
 rmjds_nodat = []
 for i,d in enumerate(mjds_g):
