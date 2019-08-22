@@ -28,6 +28,6 @@ If properly loaded, the application should look like the following:
 
 ![Screenshot Image](./lc-screenshot.png)
 
-In the light curve plot, circles represent data which have both good quality light curve detections and ZTF science images.  Diamonds represent the time-locations of images which do not have corresponding light curve data points.
+In the light curve plot, circles represent data which have both good quality light curve detections and ZTF science images.  Diamonds represent the time-locations of images which do not have corresponding light curve data points, most likely due to low photometric quality of the images.
 
-Some of the light curve data points are not shown due to low photometric quality. We do this by enforcing all displayed data points have *catflags=0*, a condition recommended in the [ZTF Science Data System Explanatory Supplement](http://web.ipac.caltech.edu/staff/fmasci/ztf/ztf_pipelines_deliverables.pdf) .
+In addition, some of the light curve data points are not shown due to low photometric quality. We omit these by enforcing that all displayed light curve data points have *catflags=0*, a condition recommended in the [ZTF Science Data System Explanatory Supplement](http://web.ipac.caltech.edu/staff/fmasci/ztf/ztf_pipelines_deliverables.pdf) .
