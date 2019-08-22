@@ -24,3 +24,6 @@ This app has the following dependecies:
 * Astropy
 * Bokeh
 
+If properly loaded, the application should look like the following:
+
+![Screenshot Image](./lc-screenshot.png)
