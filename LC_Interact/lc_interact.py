@@ -3,8 +3,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from glob import glob
 from astropy.io import fits
+from astropy.io import ascii
 from astropy.visualization import ZScaleInterval
 from astropy.time import Time
+from astropy.coordinates import SkyCoord
 
 from bokeh.io import curdoc
 from bokeh.layouts import column, row, layout
@@ -14,10 +16,8 @@ from bokeh.models.glyphs import Text
 from bokeh.plotting import figure
 
 
-# Load in the ZTF data
-header_names = pd.read_csv('lc.txt',skiprows=50,sep='|',nrows=0).columns.values[1:-1]
-header = [s.strip(" ") for s in header_names]
-data = pd.read_csv('lc.txt',skiprows=54,header=None,names=header, delim_whitespace=True)
+# Load in the ZTF data and convert to Pandas DataFrame
+data = ascii.read('lc.txt').to_pandas()
 
 # Load in ZTF Images at this object's RA/Dec
 ZS = ZScaleInterval(nsamples=10000, contrast=0.15, max_reject=0.5, 
@@ -25,7 +25,7 @@ ZS = ZScaleInterval(nsamples=10000, contrast=0.15, max_reject=0.5,
 fits_files = sorted(glob('ZTF_Sci_Files/*.fits'))
 num_files = len(fits_files)
 mjds_g,mjds_r = [],[]   # Store MJD of image
-imdat_g,imdat_r= [],[]  # Store Image itself
+imdat_g,imdat_r = [],[] # Store Image pixel data
 vmin_g,vmin_r = [],[]   # Store Z-Scale Minimums
 vmax_g,vmax_r = [],[]   # Store Z-Scale Maximums
 hdrs_g,hdrs_r = [],[]   # Store Image headers
@@ -60,6 +60,9 @@ for d in mjds_r:
     if min(abs(rdata.mjd.values - d))*86400.0 > 1.0:
         rmjds_nodat.append(d)
 
+print(len(gdata), len(rdata))
+print(len(gmjds_nodat), len(rmjds_nodat))
+
 # Get data of interest from the loaded lightcurve tables
 gmjds = gdata.mjd.values # MJD dates for g-data
 rmjds = rdata.mjd.values # MJD dates for r-data
@@ -85,12 +88,19 @@ source_r = ColumnDataSource(data=dict(x=rmjds, y=rmags, lower=rlower, upper=rupp
 source_nodat_g = ColumnDataSource(data=dict(x=gmjds_nodat, y=gmags_nodat))
 source_nodat_r = ColumnDataSource(data=dict(x=rmjds_nodat, y=rmags_nodat))
 
+# Generate an object name using the RA/Dec in the Light Curve File
+ra = data['ra'].values[0]
+de = data['dec'].values[0]
+coord = SkyCoord(ra,de,unit="deg",frame="icrs")
+coord_str = coord.to_string('hmsdms',sep="",precision=2).replace(" ","")
+ztf_name = 'ZTF J{}'.format(coord_str)
+
 # Initialize Light Curve Plot
-fig_lc = figure(plot_height=320, plot_width=600,
+fig_lc = figure(plot_height=320, plot_width=650,
                 tools="pan,wheel_zoom,box_zoom,tap,reset",
                 toolbar_location="above", border_fill_color="whitesmoke")
 fig_lc.toolbar.logo = None
-fig_lc.title.text = "Title With Options"
+fig_lc.title.text = "Light Curve for {}".format(ztf_name)
 fig_lc.title.offset = -10
 fig_lc.yaxis.axis_label = 'Mag'
 fig_lc.xaxis.axis_label = 'MJD'
@@ -117,8 +127,8 @@ fig_lc.circle('x', 'y', source=source_g, size=6,
                selection_color="forestgreen",
                selection_alpha=0.5,
                # set visual properties for non-selected glyphs
-               nonselection_alpha=0.5,
-               nonselection_color="forestgreen")
+               nonselection_color="forestgreen",
+               nonselection_alpha=0.5)
 fig_lc.circle('x', 'y', source=source_r, size=6, 
                # Set defaults
                fill_color="firebrick", line_color="firebrick",
@@ -149,8 +159,8 @@ fig_lc.diamond('x', 'y', source=source_nodat_r, size=8,
                selection_color="firebrick",
                selection_alpha=0.5,
                # set visual properties for non-selected glyphs
-               nonselection_alpha=0.5,
-               nonselection_color="firebrick")
+               nonselection_color="firebrick",
+               nonselection_alpha=0.5)
 
 # Vertical line to indicate the cadence
 vline_g = Span(location=mjds_g[0], dimension='height', 
@@ -187,28 +197,28 @@ fig_imr.image(image=[imdat_r[0]], x=0, y=0, dw=imdat_r[0].shape[1], dh=imdat_r[0
 
 
 # Interactive slider widgets and buttons to select the image number
-g_frame_slider = Slider(start=1,end=len(imdat_g)-1,
+g_frame_slider = Slider(start=1,end=len(imdat_g),
                         value=1,step=1,bar_color='forestgreen',
-                        title="g-Frame Slider",width=510,
+                        title="g-Frame Slider",width=520,
                         callback_policy="throttle",
-                        callback_throttle=100)
-r_frame_slider = Slider(start=1,end=len(imdat_r)-1,
+                        callback_throttle=200)
+r_frame_slider = Slider(start=1,end=len(imdat_r),
                         value=1,step=1,bar_color='firebrick',
-                        title="r-Frame Slider",width=510,
+                        title="r-Frame Slider",width=520,
                         callback_policy="throttle",
-                        callback_throttle=100)
-rbutton_g = Button(label=">", button_type="default", width=30)
-lbutton_g = Button(label="<", button_type="default", width=30)
-rbutton_r = Button(label=">", button_type="default", width=30)
-lbutton_r = Button(label="<", button_type="default", width=30)
+                        callback_throttle=200)
+rbutton_g = Button(label=">", button_type="default", width=40)
+lbutton_g = Button(label="<", button_type="default", width=40)
+rbutton_r = Button(label=">", button_type="default", width=40)
+lbutton_r = Button(label="<", button_type="default", width=40)
 
 
 # Initialize the Info Box Plots
-fig_infog = figure(plot_width=300, plot_height=222,
+fig_infog = figure(plot_width=325, plot_height=222,
                    x_range=[0, 1], y_range=[0, 1],
                    title="ZTF-g Image MetaData", tools='',
                    border_fill_color="whitesmoke")
-fig_infor = figure(plot_width=300, plot_height=222,
+fig_infor = figure(plot_width=325, plot_height=222,
                    x_range=[0, 1], y_range=[0, 1],
                    title="ZTF-r Image MetaData", tools='',
                    border_fill_color="whitesmoke")
