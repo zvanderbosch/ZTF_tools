@@ -1,6 +1,4 @@
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 from glob import glob
 from astropy.io import fits
 from astropy.io import ascii
