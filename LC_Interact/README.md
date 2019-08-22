@@ -18,7 +18,7 @@ Bokeh app running at: http://localhost:5006/lc_interact
 
 at which point you should copy and paste the web address into your favorite web browser.
 
-This app has the following dependecies:
+This app has the following dependencies:
 
 * Python 3.5 or later
 * Astropy
