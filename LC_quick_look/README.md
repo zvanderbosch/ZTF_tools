@@ -1,1 +1,3 @@
-The Python Notebook here will allow you to perform a cone search centered on a user defined RA and Dec coordinate and download light curves from the ZTF database.
+## ZTF Light Curve Quick-Look Tutorial
+
+The python notebook, view_ztf_data, allows you to quickly download and take a first look at the ZTF light curve found using a cone search.
