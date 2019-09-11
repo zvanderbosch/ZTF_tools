@@ -13,7 +13,7 @@ output_file("my_bokeh_plot.html")
 
 
 # Load in ZTF Data
-ztf_path = "/Users/zvander/data/object/ZTF/ztf_data/WDJ0139+5245/lc.txt"
+ztf_path = "./lc.txt"
 ztf_data = ascii.read(ztf_path).to_pandas()
 ztf_gdata = ztf_data[(ztf_data.filtercode == 'zg') & 
                      (ztf_data.catflags == 0)].copy(deep=True).reset_index(drop=True)
@@ -21,7 +21,7 @@ ztf_rdata = ztf_data[(ztf_data.filtercode == 'zr') &
                      (ztf_data.catflags == 0)].copy(deep=True).reset_index(drop=True)
 
 # Load in LCO Data
-lco_path = "/Users/zvander/data/object/ZTF/ztf_data/WDJ0139+5245/LCO/LCO_Phot_File.csv"
+lco_path = "./LCO_Phot_File.csv"
 lco_data = pd.read_csv(lco_path)
 lco_gdata = lco_data[(lco_data['filter'] == 'gp') & 
                      (lco_data['sn'] > 20.0) & 
