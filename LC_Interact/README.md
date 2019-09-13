@@ -26,7 +26,7 @@ This app has the following dependencies:
 
 If properly loaded, the application should look like the following:
 
-![Screenshot Image](./lc-screenshot.png)
+![Screenshot Image](./lc_interact_screenshot.png)
 
 In the light curve plot, circles represent data which have both good quality light curve detections and ZTF science images.  Diamonds represent the time-locations of images which do not have corresponding light curve data points, most likely due to low photometric quality of the images.
 
