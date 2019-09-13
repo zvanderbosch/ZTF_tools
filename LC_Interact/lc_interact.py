@@ -5,6 +5,7 @@ from astropy.io import ascii
 from astropy.visualization import ZScaleInterval
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
+from astropy import wcs
 
 from bokeh.io import curdoc
 from bokeh.layouts import column, row, layout
@@ -17,49 +18,17 @@ from bokeh.plotting import figure
 # Load in the ZTF data and convert to Pandas DataFrame
 data = ascii.read('lc.txt').to_pandas()
 
-# Load in ZTF Images at this object's RA/Dec
-ZS = ZScaleInterval(nsamples=10000, contrast=0.15, max_reject=0.5, 
-                    min_npixels=5, krej=2.5, max_iterations=5)
-fits_files = sorted(glob('ZTF_Sci_Files/*.fits'))
-num_files = len(fits_files)
-mjds_g,mjds_r = [],[]   # Store MJD of image
-imdat_g,imdat_r = [],[] # Store Image pixel data
-vmin_g,vmin_r = [],[]   # Store Z-Scale Minimums
-vmax_g,vmax_r = [],[]   # Store Z-Scale Maximums
-hdrs_g,hdrs_r = [],[]   # Store Image headers
-for f in fits_files:
-    hdr = fits.getheader(f)
-    dat = fits.getdata(f)
-    vmin,vmax = ZS.get_limits(dat)
-    if hdr['FILTERID'] == 1:
-        mjds_g.append(hdr['OBSMJD'])
-        imdat_g.append(dat)
-        hdrs_g.append(hdr)
-        vmin_g.append(vmin)
-        vmax_g.append(vmax)
-    elif hdr['FILTERID'] == 2:
-        mjds_r.append(hdr['OBSMJD'])
-        imdat_r.append(dat)
-        hdrs_r.append(hdr)
-        vmin_r.append(vmin)
-        vmax_r.append(vmax)
+# Separate Data into g and r filters and remove
+# poor quality epochs with CATFLAGS bit value
+gdata = data[(data.filtercode == 'zg') & 
+             (data.catflags == 0)].sort_values(by='mjd').reset_index()
+rdata = data[(data.filtercode == 'zr') & 
+             (data.catflags == 0)].sort_values(by='mjd').reset_index()
 
-# Separate Data into g and r filters and remove poor quality epochs with CATFLAGS bit value
-gdata = data[(data.filtercode == 'zg') & (data.catflags == 0)].sort_values(by='mjd').reset_index()
-rdata = data[(data.filtercode == 'zr') & (data.catflags == 0)].sort_values(by='mjd').reset_index()
-
-# Find the Image MJDs which have no associated data points in the light curves
-gmjds_nodat = []
-rmjds_nodat = []
-for i,d in enumerate(mjds_g):
-    if min(abs(gdata.mjd.values - d))*86400.0 > 1.0:
-        gmjds_nodat.append(d)
-for d in mjds_r:
-    if min(abs(rdata.mjd.values - d))*86400.0 > 1.0:
-        rmjds_nodat.append(d)
-
-print(len(gdata), len(rdata))
-print(len(gmjds_nodat), len(rmjds_nodat))
+# Get RA-Dec
+ra = np.average(data.ra.values)
+dec = np.average(data.dec.values)
+radec = [ra,dec]
 
 # Get data of interest from the loaded lightcurve tables
 gmjds = gdata.mjd.values # MJD dates for g-data
@@ -76,6 +45,126 @@ ydiff = max(max(gmags),max(rmags)) - min(min(gmags),min(rmags))
 ylow = min(min(gmags),min(rmags)) - 0.3*ydiff
 yupp = max(max(gmags),max(rmags)) + 0.3*ydiff
 
+# Load in ZTF Images at this object's RA/Dec
+ZS = ZScaleInterval(nsamples=10000, contrast=0.15, max_reject=0.5, 
+                    min_npixels=5, krej=2.5, max_iterations=5)
+fits_files = sorted(glob('ZTF_Sci_Files/*.fits'))
+num_files = len(fits_files)
+mjds_g,mjds_r = [],[]   # Store MJD of image
+imdat_g,imdat_r = [],[] # Store Image pixel data
+hdrs_g,hdrs_r = [],[]   # Store Image headers
+for f in fits_files:
+    hdr = fits.getheader(f)
+    dat = fits.getdata(f)
+    if hdr['FILTERID'] == 1:
+        mjds_g.append(hdr['OBSMJD'])
+        imdat_g.append(dat)
+        hdrs_g.append(hdr)
+    elif hdr['FILTERID'] == 2:
+        mjds_r.append(hdr['OBSMJD'])
+        imdat_r.append(dat)
+        hdrs_r.append(hdr)
+
+# Get max X(columns) and Y(rows) image dimensions
+xdim_max = 0
+ydim_max = 0
+for im in imdat_g:
+    if np.shape(im)[0] > xdim_max:
+        xdim_max = np.shape(im)[1]
+    if np.shape(im)[1] > ydim_max:
+        ydim_max = np.shape(im)[0]
+xcent = round(xdim_max/2) # Central X Pixel 
+ycent = round(ydim_max/2) # Central Y Pixel
+
+
+# Define function to reshape all images to same size
+def im_reshape(im,head,xdim,ydim,coord):
+
+    # Initialize new image array filled with zeros
+    im_new = np.zeros((xdim,ydim))
+    
+    # Get shape of current image
+    xdim_cur = np.shape(im)[1]
+    ydim_cur = np.shape(im)[0]
+
+    # Get approximate pixel location of given RA-Dec Coordinates
+    w = wcs.WCS(head)
+    wpix = w.wcs_world2pix(np.array([coord]),1)
+    xpix = int(round(wpix[0][0]))
+    ypix = int(round(wpix[0][1]))
+    xdiff = xcent - xpix
+    ydiff = ycent - ypix
+
+    # Fill in the Zero-Valued Image with real image data
+    if (xdim_cur == xdim) & (ydim_cur == ydim):
+        return im
+    elif (xdim_cur < xdim) & (ydim_cur < ydim):
+        im_new[ydiff:ydiff+ydim_cur, xdiff:xdiff+xdim_cur] = im
+    elif (xdim_cur < xdim) & (ydim_cur == ydim):
+        im_new[:, xdiff:xdiff+xdim_cur] = im
+    elif (xdim_cur == xdim) & (ydim_cur < ydim):
+        im_new[ydiff:ydiff+ydim_cur, :] = im
+    return im_new
+
+# Reshape all of the images to have the same size.
+# Fill in empty pixels with NaNs and keep object coordinates 
+# centered using the WCS solution for each image.
+vmin_g,vmin_r = [],[]   # Store Z-Scale Minimums
+vmax_g,vmax_r = [],[]   # Store Z-Scale Maximums
+
+# g-band images
+for i,im in enumerate(imdat_g):
+
+    # Get reshaped image
+    im_new = im_reshape(im,hdrs_g[i],xdim_max,ydim_max,radec)
+
+    # Calculate new vmin and vmax values (exclude low pixel values)
+    vmin,vmax = ZS.get_limits(im_new[im_new > 10.0])
+    vmin_g.append(vmin)
+    vmax_g.append(vmax)
+
+    # Overwrite old image with new image
+    imdat_g[i] = im_new
+
+# Repeat for r-band images
+for i,im in enumerate(imdat_r):
+
+    # Get reshaped image
+    im_new = im_reshape(im,hdrs_r[i],xdim_max,ydim_max,radec)
+
+    # Calculate new vmin and vmax values (exclude low pixel values)
+    vmin,vmax = ZS.get_limits(im_new[im_new > 10.0])
+    vmin_r.append(vmin)
+    vmax_r.append(vmax)
+
+    # Overwrite old image with new image
+    imdat_r[i] = im_new
+
+
+
+# Find the Image MJDs which have no associated data points in the light curves
+gmjds_nodat = []
+rmjds_nodat = []
+gmags_all = []
+rmags_all = []
+gcount = 0
+rcount = 0
+for i,d in enumerate(mjds_g):
+    if min(abs(gdata.mjd.values - d))*86400.0 > 1.0:
+        gmjds_nodat.append(d)
+        gmags_all.append(ylow+0.10*ydiff)
+    else:
+        gmags_all.append(gdata.mag.iloc[gcount])
+        gcount += 1
+for d in mjds_r:
+    if min(abs(rdata.mjd.values - d))*86400.0 > 1.0:
+        rmjds_nodat.append(d)
+        rmags_all.append(ylow+0.10*ydiff)
+    else:
+        rmags_all.append(rdata.mag.iloc[rcount])
+        rcount += 1
+
+
 # Generate fixed magnitude arrays for images without any light curve data
 gmags_nodat = [ylow+0.10*ydiff]*len(gmjds_nodat)
 rmags_nodat = [ylow+0.10*ydiff]*len(rmjds_nodat)
@@ -85,6 +174,9 @@ source_g = ColumnDataSource(data=dict(x=gmjds, y=gmags, lower=glower, upper=gupp
 source_r = ColumnDataSource(data=dict(x=rmjds, y=rmags, lower=rlower, upper=rupper))
 source_nodat_g = ColumnDataSource(data=dict(x=gmjds_nodat, y=gmags_nodat))
 source_nodat_r = ColumnDataSource(data=dict(x=rmjds_nodat, y=rmags_nodat))
+g_marker_source = ColumnDataSource(data=dict(x=[mjds_g[0]], y=[gmags_all[0]]))
+r_marker_source = ColumnDataSource(data=dict(x=[mjds_r[0]], y=[rmags_all[0]]))
+
 
 # Generate an object name using the RA/Dec in the Light Curve File
 ra = data['ra'].values[0]
@@ -106,7 +198,7 @@ fig_lc.y_range = Range1d(start=yupp, end=ylow)
 
 # Add Error Bars
 eg = Whisker(source=source_g, base="x", upper="upper", lower="lower",
-             line_color="forestgreen",line_width=1.5,line_alpha=0.5)
+             line_color="cornflowerblue",line_width=1.5,line_alpha=0.5)
 er = Whisker(source=source_r, base="x", upper="upper", lower="lower",
              line_color="firebrick",line_width=1.5,line_alpha=0.5)
 eg.upper_head.line_color = None
@@ -117,16 +209,16 @@ fig_lc.add_layout(eg)
 fig_lc.add_layout(er)
 
 # Plot g and r light curve data
-fig_lc.circle('x', 'y', source=source_g, size=6, 
+fig_lc.square('x', 'y', source=source_g, size=6, 
                # Set defaults
-               fill_color="forestgreen", line_color="forestgreen",
-               fill_alpha=0.5, line_alpha=0.5,
+               fill_color="cornflowerblue", line_color="cornflowerblue",
+               fill_alpha=0.6, line_alpha=0.6,
                # set visual properties for selected glyphs
-               selection_color="forestgreen",
-               selection_alpha=0.5,
+               selection_color="cornflowerblue",
+               selection_alpha=0.6,
                # set visual properties for non-selected glyphs
-               nonselection_color="forestgreen",
-               nonselection_alpha=0.5)
+               nonselection_color="cornflowerblue",
+               nonselection_alpha=0.6)
 fig_lc.circle('x', 'y', source=source_r, size=6, 
                # Set defaults
                fill_color="firebrick", line_color="firebrick",
@@ -141,14 +233,14 @@ fig_lc.circle('x', 'y', source=source_r, size=6,
 # Plot diamonds for images without any corresponding light curve data
 fig_lc.diamond('x', 'y', source=source_nodat_g, size=8,
                # Set defaults
-               fill_color="forestgreen", line_color="forestgreen",
-               fill_alpha=0.5, line_alpha=0.5,
+               fill_color="cornflowerblue", line_color="cornflowerblue",
+               fill_alpha=0.6, line_alpha=0.6,
                # set visual properties for selected glyphs
-               selection_color="forestgreen",
-               selection_alpha=0.5,
+               selection_color="cornflowerblue",
+               selection_alpha=0.6,
                # set visual properties for non-selected glyphs
-               nonselection_color="forestgreen",
-               nonselection_alpha=0.5)
+               nonselection_color="cornflowerblue",
+               nonselection_alpha=0.6)
 fig_lc.diamond('x', 'y', source=source_nodat_r, size=8,
                # Set defaults
                fill_color="firebrick", line_color="firebrick",
@@ -160,13 +252,25 @@ fig_lc.diamond('x', 'y', source=source_nodat_r, size=8,
                nonselection_color="firebrick",
                nonselection_alpha=0.5)
 
+# Plot Markers for Selected Cadence
+fig_lc.square('x','y',source=g_marker_source,
+               # Set defaults
+               fill_color="black", line_color="black",
+               fill_alpha=0, line_alpha=1, line_width=1.5,
+               size=12,name='g_marker')
+fig_lc.circle('x','y',source=r_marker_source,
+               # Set defaults
+               fill_color="black", line_color="black",
+               fill_alpha=0, line_alpha=1, line_width=1.5,
+               size=12,name='r_marker')
+
 # Vertical line to indicate the cadence
-vline_g = Span(location=mjds_g[0], dimension='height', 
-               line_color='forestgreen',line_width=2,line_alpha=0.8)
-vline_r = Span(location=mjds_r[0], dimension='height', 
-               line_color='firebrick'  ,line_width=2,line_alpha=0.8)
-fig_lc.add_layout(vline_g)
-fig_lc.add_layout(vline_r)
+# vline_g = Span(location=mjds_g[0], dimension='height', 
+#                line_color='cornflowerblue',line_width=2,line_alpha=0.8)
+# vline_r = Span(location=mjds_r[0], dimension='height', 
+#                line_color='firebrick'  ,line_width=2,line_alpha=0.8)
+# fig_lc.add_layout(vline_g)
+# fig_lc.add_layout(vline_r)
 
 # Initialize Image plots
 fig_img = figure(plot_width=300, plot_height=320,
@@ -189,14 +293,14 @@ color_mapper_g = LinearColorMapper(palette="Greys256", low=vmin_g[0], high=vmax_
 color_mapper_r = LinearColorMapper(palette="Greys256", low=vmin_r[0], high=vmax_r[0])
 # Plot the images
 fig_img.image(image=[imdat_g[0]], x=0, y=0, dw=imdat_g[0].shape[1], dh=imdat_g[0].shape[0], 
-            dilate=True, color_mapper=color_mapper_g, name="gframe")
+              dilate=True, color_mapper=color_mapper_g, name="gframe")
 fig_imr.image(image=[imdat_r[0]], x=0, y=0, dw=imdat_r[0].shape[1], dh=imdat_r[0].shape[0], 
-            dilate=True, color_mapper=color_mapper_r, name="rframe")
+              dilate=True, color_mapper=color_mapper_r, name="rframe")
 
 
 # Interactive slider widgets and buttons to select the image number
 g_frame_slider = Slider(start=1,end=len(imdat_g),
-                        value=1,step=1,bar_color='forestgreen',
+                        value=1,step=1,bar_color='cornflowerblue',
                         title="g-Frame Slider",width=520,
                         callback_policy="throttle",
                         callback_throttle=200)
@@ -280,7 +384,7 @@ def update_g_frame(attr, old, new):
     fig_img.select('gframe')[0].data_source.data['image'] = [imdat_g[newind-1]]
     fig_img.select('gframe')[0].glyph.color_mapper.high = vmax_g[newind-1]
     fig_img.select('gframe')[0].glyph.color_mapper.low = vmin_g[newind-1]
-    vline_g.update(location=mjds_g[newind-1])
+    g_marker_source.data = dict(x=[mjds_g[newind-1]],y=[gmags_all[newind-1]])
 
     # Update text
     new_text = gen_text(hdrs_g[newind-1])
@@ -296,12 +400,13 @@ def update_r_frame(attr, old, new):
     fig_imr.select('rframe')[0].data_source.data['image'] = [imdat_r[newind-1]]
     fig_imr.select('rframe')[0].glyph.color_mapper.high = vmax_r[newind-1]
     fig_imr.select('rframe')[0].glyph.color_mapper.low = vmin_r[newind-1]
-    vline_r.update(location=mjds_r[newind-1])
+    r_marker_source.data = dict(x=[mjds_r[newind-1]],y=[rmags_all[newind-1]])
 
     # Update text
     new_text = gen_text(hdrs_r[newind-1])
     text_source_r.data["text"] = new_text
 
+    # Clear selections
     source_r.selected.indices = []
     source_nodat_r.selected.indices = []
 
