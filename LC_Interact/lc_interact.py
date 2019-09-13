@@ -90,8 +90,8 @@ def im_reshape(im,head,xdim,ydim,coord):
     # Get approximate pixel location of given RA-Dec Coordinates
     w = wcs.WCS(head)
     wpix = w.wcs_world2pix(np.array([coord]),1)
-    xpix = int(round(wpix[0][0]))
-    ypix = int(round(wpix[0][1]))
+    xpix = min(int(round(wpix[0][0])),xcent)
+    ypix = min(int(round(wpix[0][1])),ycent)
     xdiff = xcent - xpix
     ydiff = ycent - ypix
 
