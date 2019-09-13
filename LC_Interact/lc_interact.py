@@ -264,14 +264,6 @@ fig_lc.circle('x','y',source=r_marker_source,
                fill_alpha=0, line_alpha=1, line_width=1.5,
                size=12,name='r_marker')
 
-# Vertical line to indicate the cadence
-# vline_g = Span(location=mjds_g[0], dimension='height', 
-#                line_color='cornflowerblue',line_width=2,line_alpha=0.8)
-# vline_r = Span(location=mjds_r[0], dimension='height', 
-#                line_color='firebrick'  ,line_width=2,line_alpha=0.8)
-# fig_lc.add_layout(vline_g)
-# fig_lc.add_layout(vline_r)
-
 # Initialize Image plots
 fig_img = figure(plot_width=300, plot_height=320,
                  x_range=[0, imdat_g[0].shape[1]], 
