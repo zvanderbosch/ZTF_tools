@@ -268,13 +268,13 @@ fig_lc.circle('x','y',source=r_marker_source,
 fig_img = figure(plot_width=300, plot_height=320,
                  x_range=[0, imdat_g[0].shape[1]], 
                  y_range=[0, imdat_g[0].shape[0]],
-                 title="ZTF-g Image", tools='box_zoom,wheel_zoom,reset',
+                 title="ZTF-g Image", tools='pan,box_zoom,wheel_zoom,reset',
                  toolbar_location="above",
                  border_fill_color="whitesmoke")
 fig_imr = figure(plot_width=300, plot_height=320,
                  x_range=fig_img.x_range, 
                  y_range=fig_img.y_range,
-                 title="ZTF-r Image", tools='box_zoom,wheel_zoom,reset',
+                 title="ZTF-r Image", tools='pan,box_zoom,wheel_zoom,reset',
                  toolbar_location="above",
                  border_fill_color="whitesmoke")
 fig_img.toolbar.logo = None
