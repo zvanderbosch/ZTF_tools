@@ -1,11 +1,14 @@
+import sys
 import numpy as np
 from glob import glob
 from astropy.io import fits
 from astropy.io import ascii
+from astropy.table import Table
 from astropy.visualization import ZScaleInterval
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
 from astropy import wcs
+import matplotlib.pyplot as plt
 
 from bokeh.io import curdoc
 from bokeh.layouts import column, row, layout
@@ -14,9 +17,11 @@ from bokeh.models import Span, Range1d, LinearColorMapper, Whisker
 from bokeh.models.glyphs import Text
 from bokeh.plotting import figure
 
-
 # Load in the ZTF data and convert to Pandas DataFrame
-data = ascii.read('lc.txt').to_pandas()
+data = Table.read('lc.fits')
+data.remove_column('null_bitfield_flags')
+data = data.to_pandas()
+data['filtercode'] = [x.decode("utf-8") for x in data['filtercode'].values]
 
 # Separate Data into g and r filters and remove
 # poor quality epochs with CATFLAGS bit value
@@ -73,8 +78,8 @@ for im in imdat_g:
         xdim_max = np.shape(im)[1]
     if np.shape(im)[1] > ydim_max:
         ydim_max = np.shape(im)[0]
-xcent = round(xdim_max/2) # Central X Pixel 
-ycent = round(ydim_max/2) # Central Y Pixel
+xcent = xdim_max/2 # Central X Pixel 
+ycent = ydim_max/2 # Central Y Pixel
 
 
 # Define function to reshape all images to same size
@@ -87,24 +92,34 @@ def im_reshape(im,head,xdim,ydim,coord):
     xdim_cur = np.shape(im)[1]
     ydim_cur = np.shape(im)[0]
 
+    # Fill the new image with data values
+    im_new[0:ydim_cur,0:xdim_cur] = im
+
     # Get approximate pixel location of given RA-Dec Coordinates
     w = wcs.WCS(head)
     wpix = w.wcs_world2pix(np.array([coord]),1)
-    xpix = min(int(round(wpix[0][0])),xcent)
-    ypix = min(int(round(wpix[0][1])),ycent)
-    xdiff = xcent - xpix
-    ydiff = ycent - ypix
+    xpix = wpix[0][0]
+    ypix = wpix[0][1]
+    xdiff = int(np.round(xcent - xpix))
+    ydiff = int(np.round(ycent - ypix))
 
-    # Fill in the Zero-Valued Image with real image data
-    if (xdim_cur == xdim) & (ydim_cur == ydim):
-        return im
-    elif (xdim_cur < xdim) & (ydim_cur < ydim):
-        im_new[ydiff:ydiff+ydim_cur, xdiff:xdiff+xdim_cur] = im
-    elif (xdim_cur < xdim) & (ydim_cur == ydim):
-        im_new[:, xdiff:xdiff+xdim_cur] = im
-    elif (xdim_cur == xdim) & (ydim_cur < ydim):
-        im_new[ydiff:ydiff+ydim_cur, :] = im
+    # Add zero padding to correct for difference in target
+    # locations and then strip data from opposite sides
+    if (xdiff >= 0) & (ydiff >= 0):
+        im_new = np.pad(im_new,((ydiff,0),(xdiff,0)))
+        im_new = im_new[0:ydim,0:xdim]
+    elif (xdiff < 0) & (ydiff >= 0):
+        im_new = np.pad(im_new,((ydiff,0),(0,abs(xdiff))))
+        im_new = im_new[0:ydim,-xdim:]
+    elif (ydiff < 0) & (xdiff >= 0):
+        im_new = np.pad(im_new,((0,abs(ydiff)),(xdiff,0)))
+        im_new = im_new[-ydim:,0:xdim]
+    elif (xdiff < 0) & (ydiff < 0):
+        im_new = np.pad(im_new,((0,abs(ydiff)),(0,abs(xdiff))))
+        im_new = im_new[-ydim:,-xdim:]
+
     return im_new
+
 
 # Reshape all of the images to have the same size.
 # Fill in empty pixels with NaNs and keep object coordinates 
@@ -115,7 +130,7 @@ vmax_g,vmax_r = [],[]   # Store Z-Scale Maximums
 # g-band images
 for i,im in enumerate(imdat_g):
 
-    # Get reshaped image
+    # Get reshaped/centered image
     im_new = im_reshape(im,hdrs_g[i],xdim_max,ydim_max,radec)
 
     # Calculate new vmin and vmax values (exclude low pixel values)
@@ -129,7 +144,7 @@ for i,im in enumerate(imdat_g):
 # Repeat for r-band images
 for i,im in enumerate(imdat_r):
 
-    # Get reshaped image
+    # Get reshaped/centered image
     im_new = im_reshape(im,hdrs_r[i],xdim_max,ydim_max,radec)
 
     # Calculate new vmin and vmax values (exclude low pixel values)
@@ -231,7 +246,7 @@ fig_lc.circle('x', 'y', source=source_r, size=6,
                nonselection_alpha=0.5)
 
 # Plot diamonds for images without any corresponding light curve data
-fig_lc.diamond('x', 'y', source=source_nodat_g, size=8,
+fig_lc.x('x', 'y', source=source_nodat_g, size=7, line_width=1.5,
                # Set defaults
                fill_color="cornflowerblue", line_color="cornflowerblue",
                fill_alpha=0.6, line_alpha=0.6,
@@ -241,7 +256,7 @@ fig_lc.diamond('x', 'y', source=source_nodat_g, size=8,
                # set visual properties for non-selected glyphs
                nonselection_color="cornflowerblue",
                nonselection_alpha=0.6)
-fig_lc.diamond('x', 'y', source=source_nodat_r, size=8,
+fig_lc.x('x', 'y', source=source_nodat_r, size=7, line_width=1.5,
                # Set defaults
                fill_color="firebrick", line_color="firebrick",
                fill_alpha=0.5, line_alpha=0.5,                    
@@ -294,13 +309,13 @@ fig_imr.image(image=[imdat_r[0]], x=0, y=0, dw=imdat_r[0].shape[1], dh=imdat_r[0
 g_frame_slider = Slider(start=1,end=len(imdat_g),
                         value=1,step=1,bar_color='cornflowerblue',
                         title="g-Frame Slider",width=520,
-                        callback_policy="throttle",
-                        callback_throttle=200)
+                        value_throttled=200,
+                        background="whitesmoke")
 r_frame_slider = Slider(start=1,end=len(imdat_r),
                         value=1,step=1,bar_color='firebrick',
                         title="r-Frame Slider",width=520,
-                        callback_policy="throttle",
-                        callback_throttle=200)
+                        value_throttled=200,
+                        background="whitesmoke")
 rbutton_g = Button(label=">", button_type="default", width=40)
 lbutton_g = Button(label="<", button_type="default", width=40)
 rbutton_r = Button(label=">", button_type="default", width=40)
@@ -372,7 +387,7 @@ fig_infor.add_glyph(text_source_r, textglyph_r)
 
 # Callback function for g-frame slider
 def update_g_frame(attr, old, new):
-    newind = new['value'][0]
+    newind = new
     fig_img.select('gframe')[0].data_source.data['image'] = [imdat_g[newind-1]]
     fig_img.select('gframe')[0].glyph.color_mapper.high = vmax_g[newind-1]
     fig_img.select('gframe')[0].glyph.color_mapper.low = vmin_g[newind-1]
@@ -388,7 +403,7 @@ def update_g_frame(attr, old, new):
 
 # Callback function for r-frame slider
 def update_r_frame(attr, old, new):
-    newind = new['value'][0]
+    newind = new
     fig_imr.select('rframe')[0].data_source.data['image'] = [imdat_r[newind-1]]
     fig_imr.select('rframe')[0].glyph.color_mapper.high = vmax_r[newind-1]
     fig_imr.select('rframe')[0].glyph.color_mapper.low = vmin_r[newind-1]
@@ -407,28 +422,24 @@ def go_right_by_one_gframe():
     existing_value = g_frame_slider.value
     if existing_value < len(imdat_g):
         g_frame_slider.value = existing_value + 1
-        fake_source_g.data = dict(value=[existing_value + 1])
 
 # Left button click event for g-frame
 def go_left_by_one_gframe():
     existing_value = g_frame_slider.value
     if existing_value > 1:
         g_frame_slider.value = existing_value - 1
-        fake_source_g.data = dict(value=[existing_value - 1])
 
 # Right button click event for r-frame
 def go_right_by_one_rframe():
     existing_value = r_frame_slider.value
     if existing_value < len(imdat_r):
         r_frame_slider.value = existing_value + 1
-        fake_source_r.data = dict(value=[existing_value + 1])
 
 # Left button click event for r-frame
 def go_left_by_one_rframe():
     existing_value = r_frame_slider.value
     if existing_value > 1:
         r_frame_slider.value = existing_value - 1
-        fake_source_r.data = dict(value=[existing_value - 1])
 
 # Callback function which moves slider when a
 # data point is clicked on in the Light Curve plot
@@ -437,22 +448,18 @@ def jump_to_lightcurve_position(event):
         num_lower = np.count_nonzero(source_nodat_g.data['x'] < 
                                      source_g.data['x'][source_g.selected.indices[0]])
         g_frame_slider.value = source_g.selected.indices[0]+num_lower+1
-        fake_source_g.data = dict(value=[source_g.selected.indices[0]+num_lower+1])
     if source_r.selected.indices != []:
         num_lower = np.count_nonzero(source_nodat_r.data['x'] < 
                                      source_r.data['x'][source_r.selected.indices[0]])
         r_frame_slider.value = source_r.selected.indices[0]+num_lower+1
-        fake_source_r.data = dict(value=[source_r.selected.indices[0]+num_lower+1])
     if source_nodat_g.selected.indices != []:
         num_lower = np.count_nonzero(source_g.data['x'] < 
                                      source_nodat_g.data['x'][source_nodat_g.selected.indices[0]])
         g_frame_slider.value = source_nodat_g.selected.indices[0]+num_lower+1
-        fake_source_g.data = dict(value=[source_nodat_g.selected.indices[0]+num_lower+1])
     if source_nodat_r.selected.indices != []:
         num_lower = np.count_nonzero(source_r.data['x'] < 
                                      source_nodat_r.data['x'][source_nodat_r.selected.indices[0]])
         r_frame_slider.value = source_nodat_r.selected.indices[0]+num_lower+1
-        fake_source_r.data = dict(value=[source_nodat_r.selected.indices[0]+num_lower+1])
 
 # Connect different objects/events to callback functions
 rbutton_g.on_click(go_right_by_one_gframe)
@@ -461,17 +468,10 @@ rbutton_r.on_click(go_right_by_one_rframe)
 lbutton_r.on_click(go_left_by_one_rframe)
 fig_lc.on_event('tap',jump_to_lightcurve_position)
 
-# 2-Step callback for the sliders to allow for callback throttling
-fake_source_g = ColumnDataSource(data=dict(value=[]))
-fake_source_r = ColumnDataSource(data=dict(value=[]))
-fake_source_g.on_change('data', update_g_frame)
-fake_source_r.on_change('data', update_r_frame)
-g_frame_slider.callback = CustomJS(args=dict(source=fake_source_g), code="""
-    source.data = { value: [cb_obj.value] }
-    """)
-r_frame_slider.callback = CustomJS(args=dict(source=fake_source_r), code="""
-    source.data = { value: [cb_obj.value] }
-    """)
+# Connect callback to the sliders
+g_frame_slider.on_change('value',update_g_frame)
+r_frame_slider.on_change('value',update_r_frame)
+
 
 # Create plot grid
 l = layout([fig_lc,fig_img],

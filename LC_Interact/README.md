@@ -2,21 +2,16 @@
 
 This python script generates a web application running on a Bokeh server which allows for the visual inspection of ZTF light curves and images for a single object.
 
-As input this script requires a ZTF lightcurve file named **lc.txt** and a folder named **ZTF_Sci_Files** containing all of the science images in FITS format.  These are the default names provided when light curves and images are downloaded from the [NASA/IPAC Infrared Science Archive](https://irsa.ipac.caltech.edu/Missions/ztf.html). 
+As input this script requires a ZTF lightcurve file named **lc.fits** and a folder named **ZTF_Sci_Files** containing all of the science images in FITS format.  These are the default names provided when light curves and images are downloaded from the [NASA/IPAC Infrared Science Archive](https://irsa.ipac.caltech.edu/Missions/ztf.html). 
 
 From the folder containing your light curve and image data, you can run this app from the command line with:
 
 ```
-bokeh serve lc_interact.py
+bokeh serve --show lc_interact.py
 ```
 
-This will generate output on the command line similar to 
+This should automatically launch the server which will take a few seconds to load, depending on how much data you are loading into the application.
 
-```
-Bokeh app running at: http://localhost:5006/lc_interact
-```
-
-at which point you should copy and paste the web address into your favorite web browser.
 
 This app has the following dependencies:
 
@@ -26,7 +21,7 @@ This app has the following dependencies:
 
 If properly loaded, the application should look like the following:
 
-![Screenshot Image](./lc_interact_screenshot.png)
+![Screenshot Image](./images/lc_interact_screenshot.png =250x)
 
 In the light curve plot, red circles (r-band) and blue squares (g-band) represent data which have both good quality light curve detections and ZTF science images.  Blue and red diamonds represent the time-locations of images which do not have corresponding light curve data points, most likely due to low photometric quality of the images.
 
