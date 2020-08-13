@@ -23,6 +23,6 @@ If properly loaded, the application should look like the following:
 
 ![Screenshot Image](./images/lc_interact_screenshot.png)
 
-In the light curve plot, red circles (r-band) and blue squares (g-band) represent data which have both good quality light curve detections and ZTF science images.  Blue and red diamonds represent the time-locations of images which do not have corresponding light curve data points, most likely due to low photometric quality of the images.
+In the light curve plot, red circles (r-band) and blue squares (g-band) represent data which have both good quality light curve detections and ZTF science images.  Blue and red X's represent the time-locations of images which do not have corresponding light curve data points, most likely due to low photometric quality of the images.
 
-In addition, this application only shows light curve data points which have *catflags=0*, a condition recommended in the [ZTF Science Data System Explanatory Supplement](http://web.ipac.caltech.edu/staff/fmasci/ztf/ztf_pipelines_deliverables.pdf). Data points with *catflags>0* are also likely to have poor photometric quality.
+In addition, this application only shows light curve data points which have *catflags=0*, a condition recommended in the [ZTF Science Data System Explanatory Supplement](http://web.ipac.caltech.edu/staff/fmasci/ztf/ztf_pipelines_deliverables.pdf) for clean light curves.
