@@ -166,7 +166,7 @@ def alert_query(RA,DEC,save=False,cone_radius=5.0,sleep_time=60.0,query_limit=10
 
         Optional:
         save        = whether to save query results to file in
-                      JSON format (default = True)
+                      JSON format (default = False)
         cone_radius = search radius in arcseconds (default = 5)
         sleep_time  = time in seconds between successive MARS
                       queries (default = 60)
