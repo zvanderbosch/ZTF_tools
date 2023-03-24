@@ -1,3 +1,4 @@
+import time
 import requests
 import colorsys
 import numpy as np
@@ -13,6 +14,9 @@ from astropy.time import Time,TimeDelta
 from io import StringIO
 from http.client import responses
 from lmfit import Model
+from astroquery.gaia import Gaia
+from astroquery.vizier import Vizier
+
 
 LOGIN_URL = "https://irsa.ipac.caltech.edu/account/signon/login.do"
 
@@ -396,3 +400,102 @@ def lighten_color(color, amount=0.5):
     hexcol = mc.to_hex(rgb)
     
     return hexcol
+
+
+def GaiaQuery(obj_coord):
+    """
+    Function to perform Gaia DR3 query
+    
+    Input:
+    ------
+    obj_coord: Astropy coord object
+        Array of light curve timestamps
+        
+    Returns:
+    --------
+    gaia_data: list or None
+        List of gaia DR3 parameters, including
+        the Gaia designation, G-band mag,
+        parallax, BP-RP color, and absolute
+        G-band magnitude. None if the cone
+        search query returns no results.
+    """
+
+    # Set Gaia search parameters
+    Gaia.ROW_LIMIT = 5
+    Gaia.MAIN_GAIA_TABLE = "gaiadr3.gaia_source"
+    
+    # Query Gaia catalog
+    query = True
+    while query:
+        try:
+            gaia_job = Gaia.cone_search_async(
+                obj_coord, 
+                3.0*u.arcsec
+            )
+            query = False
+        except:
+            print('GAIA query failed, retrying...')
+            time.sleep(1.0)
+            continue
+    gaia_result = gaia_job.get_results().to_pandas()
+
+    # Get results for nearest source
+    if len(gaia_result) > 0:
+        gaiaID = gaia_result.source_id.iloc[0]
+        designation = gaia_result.DESIGNATION.iloc[0]
+        gmag = gaia_result.phot_g_mean_mag.iloc[0]
+        bpmag = gaia_result.phot_bp_mean_mag.iloc[0]
+        rpmag = gaia_result.phot_rp_mean_mag.iloc[0]
+        parallax = gaia_result.parallax.iloc[0]
+        bprp = bpmag - rpmag
+        if (np.isnan(parallax)) | (parallax < 0):
+            Gabs = np.nan
+        else:
+            Gabs = gmag + 5.0*np.log10(parallax/100)
+        Gabs_lower_limit = Gabs
+        Gabs_upper_limit = Gabs
+
+        # Now query Bailer-Jones 2021 catalog for distances
+        query = True
+        while query:
+            try:
+                viz_job = Vizier.query_region(
+                    obj_coord, 
+                    radius=3*u.arcsec,
+                    catalog='I/352/gedr3dis',
+                    column_filters={
+                        'Source': f'={gaiaID}'
+                    }
+                )
+                query = False
+            except:
+                print('VIZIER query failed, retrying...')
+                time.sleep(1.0)
+                continue
+
+        if len(viz_job) > 0:
+            viz_result = viz_job[0].to_pandas()
+            if len(viz_result) > 0:
+                median_dist = viz_result.rgeo.iloc[0]
+                lower_dist = viz_result.b_rgeo.iloc[0]
+                upper_dist = viz_result.B_rgeo.iloc[0]
+                Gabs = gmag + 5.0*(1.0 - np.log10(median_dist))
+                Gabs_lower_limit = gmag + 5.0*(1.0 - np.log10(lower_dist))
+                Gabs_upper_limit = gmag + 5.0*(1.0 - np.log10(upper_dist))
+
+        # Generate return data
+        gaia_data = {
+            'designation':designation, 
+            'phot_g_mean_mag':gmag, 
+            'parallax':parallax, 
+            'bprp':bprp, 
+            'M_G':Gabs,
+            'M_G_lowlim':Gabs_lower_limit,
+            'M_G_upplim':Gabs_upper_limit
+        }
+
+        return gaia_data
+
+    else:
+        return None
