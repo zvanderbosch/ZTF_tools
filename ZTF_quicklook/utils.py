@@ -146,6 +146,11 @@ def download_ZTF(ra,dec,radius=3.0,irsa_cookie=None,release='latest'):
     # Raise error if bad status code
     response.raise_for_status()
     data = pd.read_csv(StringIO(response.content.decode('utf-8')))
+
+    if len(data) == 0:
+        data['bjd'] = []
+        data['bsec'] = []
+        return data
     
     # Apply barycentric corrections to time stamps
     bjd_midtimes = BaryCorr(data)
@@ -499,3 +504,60 @@ def GaiaQuery(obj_coord):
 
     else:
         return None
+
+
+def get_BJD_T0(filename):
+    
+    with open(filename) as file:
+        for line in file.readlines():
+            if line[0] == "#":
+                if "# BJED" in line:
+                    ls = line.split("=")
+                    bjd = float(ls[1].split("#")[0].strip())
+                    return bjd
+                else:
+                    continue
+            else:
+                break
+
+                
+
+
+def lcBin(time, flux, fluxerr, nbin=2):
+
+    numpoints = len(time)
+    med_texp = np.median(np.diff(time))
+
+    numbins = int(np.floor(numpoints / nbin))
+
+    binned_time = []
+    binned_flux = []
+    binned_fluxerr = []
+    for i in range(numbins):
+
+        # Get data points within the bin
+        bin_times = time[i*nbin:i*nbin+nbin]
+        bin_fluxes = flux[i*nbin:i*nbin+nbin]
+        bin_fluxerrs = fluxerr[i*nbin:i*nbin+nbin]
+        bin_weights = 1./(bin_fluxerrs**2)
+
+        # Check that there aren't any major time gaps
+        ttol = 0.10 # Fractional tolerance on expected time range
+        bin_trange = max(bin_times) - min(bin_times)
+        if bin_trange > (1+ttol) * med_texp * (nbin-1):
+            continue
+        else:
+            tbin = np.mean(bin_times)
+            fbin = np.sum(bin_weights*bin_fluxes) / np.sum(bin_weights)
+            ebin = np.sqrt(np.sum(bin_fluxerrs**2))/nbin
+
+            binned_time.append(tbin)
+            binned_flux.append(fbin)
+            binned_fluxerr.append(ebin)
+
+
+    binned_time = np.array(binned_time)
+    binned_flux = np.array(binned_flux)
+    binned_fluxerr = np.array(binned_fluxerr)
+
+    return binned_time, binned_flux, binned_fluxerr
