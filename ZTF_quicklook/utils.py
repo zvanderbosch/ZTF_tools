@@ -436,7 +436,7 @@ def GaiaQuery(obj_coord):
         try:
             gaia_job = Gaia.cone_search_async(
                 obj_coord, 
-                3.0*u.arcsec
+                radius=3.0*u.arcsec
             )
             query = False
         except:
@@ -447,7 +447,7 @@ def GaiaQuery(obj_coord):
 
     # Get results for nearest source
     if len(gaia_result) > 0:
-        gaiaID = gaia_result.source_id.iloc[0]
+        gaiaID = gaia_result.SOURCE_ID.iloc[0]
         designation = gaia_result.DESIGNATION.iloc[0]
         gmag = gaia_result.phot_g_mean_mag.iloc[0]
         bpmag = gaia_result.phot_bp_mean_mag.iloc[0]
