@@ -447,8 +447,8 @@ def GaiaQuery(obj_coord):
 
     # Get results for nearest source
     if len(gaia_result) > 0:
-        gaiaID = gaia_result.SOURCE_ID.iloc[0]
-        designation = gaia_result.DESIGNATION.iloc[0]
+        gaiaID = gaia_result.source_id.iloc[0]
+        designation = gaia_result.designation.iloc[0]
         gmag = gaia_result.phot_g_mean_mag.iloc[0]
         bpmag = gaia_result.phot_bp_mean_mag.iloc[0]
         rpmag = gaia_result.phot_rp_mean_mag.iloc[0]
